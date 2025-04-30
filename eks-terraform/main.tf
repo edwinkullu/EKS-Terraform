@@ -6,6 +6,29 @@ locals {
   cluster_name = "fastapi-cluster"
 }
 
+# Create S3 bucket for storing Terraform state
+resource "aws_s3_bucket" "tfstate_bucket" {
+  bucket = "my-fastapi-tfstate-bucket-123456" # Make sure the name is globally unique
+  acl    = "private"
+
+  tags = {
+    Name        = "Terraform State Bucket"
+    Environment = "Dev"
+  }
+}
+
+# Create DynamoDB table for state locking
+resource "aws_dynamodb_table" "tfstate_lock_table" {
+  name           = "fastapi-terraform-locks"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "LockID"
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+
+# VPC setup (unchanged)
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.1.1"
@@ -30,6 +53,7 @@ module "vpc" {
   }
 }
 
+# EKS Cluster setup (unchanged)
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.8.4"
@@ -51,6 +75,7 @@ module "eks" {
   }
 }
 
+# EKS kubeconfig generation (unchanged)
 module "eks_kubeconfig" {
   source     = "hyperbadger/eks-kubeconfig/aws"
   version    = "1.0.0"
@@ -61,4 +86,15 @@ module "eks_kubeconfig" {
 resource "local_file" "kubeconfig" {
   content  = module.eks_kubeconfig.kubeconfig
   filename = "kubeconfig_${local.cluster_name}"
+}
+
+# Backend Configuration (To be initialized after S3 and DynamoDB are created)
+terraform {
+  backend "s3" {
+    bucket         = aws_s3_bucket.tfstate_bucket.bucket
+    key            = "eks/terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = aws_dynamodb_table.tfstate_lock_table.name
+    encrypt        = true
+  }
 }
