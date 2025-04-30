@@ -8,6 +8,10 @@ on:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eks-terraform  # 👈 This tells Terraform to look here
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
